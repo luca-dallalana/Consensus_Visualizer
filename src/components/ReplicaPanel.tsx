@@ -27,6 +27,24 @@ export default function ReplicaPanel({ step, config }: Props) {
   const vs     = step.viewStates[step.currentView]
   const leader = vs != null ? (vs.leader as number) : -1
 
+  // Tendermint replicas carry scalar lockedValue/validValue instead of a QC
+  // object (it has no QC concept) — show those instead of blanking the columns.
+  const isTendermint  = config.protocol === 'tendermint'
+  const leftColLabel  = isTendermint ? 'lockedValue' : 'lockedQC'
+  const rightColLabel = isTendermint ? 'validValue'  : 'prepareQC'
+
+  function replicaColValues(r: (typeof step.replicaStates)[number] | undefined): [string, string] {
+    if (r == null) return ['—', '—']
+    if ('lockedQC' in r) {
+      const left  = r.lockedQC  != null ? `v${r.lockedQC.view  as number}` : '—'
+      const right = r.prepareQC != null ? `v${r.prepareQC.view as number}` : '—'
+      return [left, right]
+    }
+    const left  = r.lockedValue != null ? r.lockedValue.slice(0, 6) : '—'
+    const right = r.validValue  != null ? r.validValue.slice(0, 6)  : '—'
+    return [left, right]
+  }
+
   const svgContainerRef = useRef<HTMLDivElement>(null)
   const [dims, setDims] = useState({ w: 600, h: 320 })
 
@@ -259,8 +277,8 @@ export default function ReplicaPanel({ step, config }: Props) {
       <div className="flex-1 min-h-0 border-t border-gray-800 flex flex-col overflow-hidden">
         <div className="flex shrink-0 text-gray-500 text-xs font-mono border-b border-gray-700">
           <div className="flex-1 text-center py-1">Replica</div>
-          <div className="flex-1 text-center py-1">lockedQC</div>
-          <div className="flex-1 text-center py-1">prepareQC</div>
+          <div className="flex-1 text-center py-1">{leftColLabel}</div>
+          <div className="flex-1 text-center py-1">{rightColLabel}</div>
           <div className="flex-1 text-center py-1">Vote</div>
         </div>
         <div className="flex-1 flex flex-col min-h-0">
@@ -269,16 +287,15 @@ export default function ReplicaPanel({ step, config }: Props) {
             const isLeader    = id === leader
             const isByzantine = r?.isByzantine ?? false
             const nameColor   = isLeader ? '#fbbf24' : isByzantine ? '#f87171' : '#d1d5db'
-            const lockedView  = r?.lockedQC  != null ? `v${r.lockedQC.view  as number}` : '—'
-            const prepareView = r?.prepareQC != null ? `v${r.prepareQC.view as number}` : '—'
+            const [leftVal, rightVal] = replicaColValues(r)
             const votes       = plugin.getVotesForReplica(step, id as unknown as import('../types').ReplicaId, config)
             const voteLabel   = votes.length > 0 ? votes[0].blockHash.slice(0, 6) : '—'
 
             return (
               <div key={id} className="flex flex-1 items-center border-t border-gray-800/50 text-xs font-mono min-h-0">
                 <div className="flex-1 text-center" style={{ color: nameColor }}>R{id}</div>
-                <div className="flex-1 text-center" style={{ color: lockedView  === '—' ? '#4b5563' : '#f3f4f6' }}>{lockedView}</div>
-                <div className="flex-1 text-center" style={{ color: prepareView === '—' ? '#4b5563' : '#f3f4f6' }}>{prepareView}</div>
+                <div className="flex-1 text-center" style={{ color: leftVal  === '—' ? '#4b5563' : '#f3f4f6' }}>{leftVal}</div>
+                <div className="flex-1 text-center" style={{ color: rightVal === '—' ? '#4b5563' : '#f3f4f6' }}>{rightVal}</div>
                 <div className="flex-1 text-center" style={{ color: voteLabel   === '—' ? '#4b5563' : '#4ade80' }}>{voteLabel}</div>
               </div>
             )
