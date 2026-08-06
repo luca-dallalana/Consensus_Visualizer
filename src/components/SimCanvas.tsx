@@ -31,7 +31,7 @@ function ViewHistoryPanel({ summaries, n }: { summaries: readonly ViewSummary[];
           return (
             <div key={s.view} className="flex items-center gap-3 px-2 py-0.5 border-b border-gray-800/50">
               <span className="w-8 text-gray-500">v{s.view}</span>
-              <span className="w-8 text-yellow-400">R{s.leader}</span>
+              <span className="w-8 text-yellow-400">{s.leader >= 0 ? `R${s.leader}` : '—'}</span>
               {s.timedOut
                 ? <span className="w-16 text-red-400">TIMEOUT</span>
                 : <span className="w-16 text-blue-400">{s.qcBlock ? s.qcBlock.slice(0, 6) + '...' : '-'}</span>
