@@ -2,6 +2,8 @@ import type { ReplicaId } from './core'
 import type { SimulationStep } from './hotstuff'
 import type { BasicSimulationStep } from './basic'
 import type { PbftSimulationStep } from './pbft'
+import type { TendermintSimulationStep } from './tendermint'
+import type { AlgorandSimulationStep } from './algorand'
 
 export type ByzantineFaultStrategy =
   | 'SILENT'
@@ -22,11 +24,11 @@ export interface SimConfig {
   readonly viewTimeout:       number
   readonly maxViews:          number
   readonly seed?:             number
-  readonly protocol:          'chained' | 'basic' | 'pbft'
+  readonly protocol:          'chained' | 'basic' | 'pbft' | 'tendermint' | 'algorand'
   readonly dropRate:          number
 }
 
-export type AnySimulationStep = SimulationStep | BasicSimulationStep | PbftSimulationStep
+export type AnySimulationStep = SimulationStep | BasicSimulationStep | PbftSimulationStep | TendermintSimulationStep | AlgorandSimulationStep
 
 export type SimulationStatus =
   | 'IDLE'

@@ -27,7 +27,7 @@ export default function ConfigPanel() {
   const f       = Math.floor((n - 1) / 3)
   const isValid = byzantineMap.size <= f
 
-  const availableStrategies = protocol === 'pbft'
+  const availableStrategies = protocol === 'pbft' || protocol === 'tendermint' || protocol === 'algorand'
     ? ALL_STRATEGIES.filter(s => s !== 'INVALID_QC')
     : ALL_STRATEGIES
 
@@ -44,7 +44,7 @@ export default function ConfigPanel() {
 
   function handleProtocolChange(p: SimConfig['protocol']) {
     setProtocol(p)
-    if (p === 'pbft') {
+    if (p === 'pbft' || p === 'tendermint' || p === 'algorand') {
       setByzantineMap(prev => {
         const next = new Map(prev)
         for (const [id, s] of next.entries()) {

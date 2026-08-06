@@ -36,6 +36,14 @@ import { initPbftSimulation, advancePbftStep } from './pbft/step'
 import { narrateStep as narratePbft, computeViewSummary as summarizePbft } from './pbft/narrate'
 import type { PbftSimulationStep } from '../types'
 
+import { initTendermintSimulation, advanceTendermintStep } from './tendermint/step'
+import { narrateStep as narrateTendermint, computeViewSummary as summarizeTendermint } from './tendermint/narrate'
+import type { TendermintSimulationStep, TendermintViewState } from '../types'
+
+import { initAlgorandSimulation, advanceAlgorandStep } from './algorand/step'
+import { narrateStep as narrateAlgorand, computeViewSummary as summarizeAlgorand } from './algorand/narrate'
+import type { AlgorandSimulationStep, AlgorandViewState } from '../types'
+
 const chainedPlugin: ProtocolPlugin = {
   id:          'chained',
   displayName: 'Chained HotStuff',
@@ -117,8 +125,62 @@ const pbftPlugin: ProtocolPlugin = {
   },
 }
 
+const tendermintPlugin: ProtocolPlugin = {
+  id:          'tendermint',
+  displayName: 'Tendermint',
+  init:        config => initTendermintSimulation(config),
+  advance:     (step, config) => advanceTendermintStep(step as TendermintSimulationStep, config),
+  narrate:     (prev, current, config) => narrateTendermint(prev, current, config),
+  summarizeView: (prev, current, config) => summarizeTendermint(prev, current, config),
+  messageTypeMap: {
+    TM_PROPOSE:   { color: '#60a5fa', label: 'Propose',   broadcastArc: true  },
+    TM_PREVOTE:   { color: '#34d399', label: 'Prevote',    broadcastArc: false },
+    TM_PRECOMMIT: { color: '#fb923c', label: 'Precommit',  broadcastArc: false },
+  },
+  getVotesForReplica(step, replicaId, _config) {
+    const s  = step as TendermintSimulationStep
+    const vs = s.viewStates[s.currentView] as TendermintViewState | undefined
+    if (!vs) return []
+    const all = [
+      ...vs.prevotes.map(v => ({ ...v, label: 'PREVOTE' })),
+      ...vs.precommits.map(v => ({ ...v, label: 'PRECOMMIT' })),
+    ]
+    return all
+      .filter(v => (v.voterId as number) === (replicaId as number))
+      .map(v => ({ blockHash: v.blockHash, viewNum: v.view as number, label: v.label }))
+  },
+}
+
+const algorandPlugin: ProtocolPlugin = {
+  id:          'algorand',
+  displayName: 'Algorand (BA⋆)',
+  init:        config => initAlgorandSimulation(config),
+  advance:     (step, config) => advanceAlgorandStep(step as AlgorandSimulationStep, config),
+  narrate:     (prev, current, config) => narrateAlgorand(prev, current, config),
+  summarizeView: (prev, current, config) => summarizeAlgorand(prev, current, config),
+  messageTypeMap: {
+    ALG_PROPOSE:   { color: '#60a5fa', label: 'Propose',    broadcastArc: true  },
+    ALG_SOFT_VOTE: { color: '#34d399', label: 'Soft Vote',   broadcastArc: false },
+    ALG_CERT_VOTE: { color: '#fb923c', label: 'Cert Vote',   broadcastArc: false },
+  },
+  getVotesForReplica(step, replicaId, _config) {
+    const s  = step as AlgorandSimulationStep
+    const vs = s.viewStates[s.currentView] as AlgorandViewState | undefined
+    if (!vs) return []
+    const all = [
+      ...vs.softVotes.map(v => ({ ...v, label: 'SOFT-VOTE' })),
+      ...vs.certVotes.map(v => ({ ...v, label: 'CERT-VOTE' })),
+    ]
+    return all
+      .filter(v => (v.voterId as number) === (replicaId as number))
+      .map(v => ({ blockHash: v.blockHash, viewNum: v.view as number, label: v.label }))
+  },
+}
+
 export const REGISTRY: Record<string, ProtocolPlugin> = {
-  chained: chainedPlugin,
-  basic:   basicPlugin,
-  pbft:    pbftPlugin,
+  chained:    chainedPlugin,
+  basic:      basicPlugin,
+  pbft:       pbftPlugin,
+  tendermint: tendermintPlugin,
+  algorand:   algorandPlugin,
 }
