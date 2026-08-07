@@ -28,16 +28,23 @@ export default function ReplicaPanel({ step, config }: Props) {
   const leader = vs != null ? (vs.leader as number) : -1
 
   // Tendermint replicas carry scalar lockedValue/validValue instead of a QC
-  // object (it has no QC concept) — show those instead of blanking the columns.
+  // object (it has no QC concept); Paxos replicas carry promisedNumber/
+  // acceptedProposal instead (no QC and no lock, just Paxos's promise state).
   const isTendermint  = config.protocol === 'tendermint'
-  const leftColLabel  = isTendermint ? 'lockedValue' : 'lockedQC'
-  const rightColLabel = isTendermint ? 'validValue'  : 'prepareQC'
+  const isPaxos       = config.protocol === 'paxos'
+  const leftColLabel  = isPaxos ? 'promised#' : isTendermint ? 'lockedValue' : 'lockedQC'
+  const rightColLabel = isPaxos ? 'accepted'  : isTendermint ? 'validValue'  : 'prepareQC'
 
   function replicaColValues(r: (typeof step.replicaStates)[number] | undefined): [string, string] {
     if (r == null) return ['—', '—']
     if ('lockedQC' in r) {
       const left  = r.lockedQC  != null ? `v${r.lockedQC.view  as number}` : '—'
       const right = r.prepareQC != null ? `v${r.prepareQC.view as number}` : '—'
+      return [left, right]
+    }
+    if ('promisedNumber' in r) {
+      const left  = `#${r.promisedNumber}`
+      const right = r.acceptedProposal != null ? r.acceptedProposal.block.hash.slice(0, 6) : '—'
       return [left, right]
     }
     const left  = r.lockedValue != null ? r.lockedValue.slice(0, 6) : '—'

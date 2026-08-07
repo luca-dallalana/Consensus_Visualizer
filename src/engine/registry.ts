@@ -44,6 +44,10 @@ import { initAlgorandSimulation, advanceAlgorandStep } from './algorand/step'
 import { narrateStep as narrateAlgorand, computeViewSummary as summarizeAlgorand } from './algorand/narrate'
 import type { AlgorandSimulationStep, AlgorandViewState } from '../types'
 
+import { initPaxosSimulation, advancePaxosStep } from './paxos/step'
+import { narrateStep as narratePaxos, computeViewSummary as summarizePaxos } from './paxos/narrate'
+import type { PaxosSimulationStep, PaxosViewState } from '../types'
+
 const chainedPlugin: ProtocolPlugin = {
   id:          'chained',
   displayName: 'Chained HotStuff',
@@ -177,10 +181,34 @@ const algorandPlugin: ProtocolPlugin = {
   },
 }
 
+const paxosPlugin: ProtocolPlugin = {
+  id:          'paxos',
+  displayName: 'Paxos',
+  init:        config => initPaxosSimulation(config),
+  advance:     (step, config) => advancePaxosStep(step as PaxosSimulationStep, config),
+  narrate:     (prev, current, config) => narratePaxos(prev, current, config),
+  summarizeView: (prev, current, config) => summarizePaxos(prev, current, config),
+  messageTypeMap: {
+    PAXOS_PREPARE:  { color: '#60a5fa', label: 'Prepare',  broadcastArc: true  },
+    PAXOS_PROMISE:  { color: '#34d399', label: 'Promise',  broadcastArc: false },
+    PAXOS_ACCEPT:   { color: '#fb923c', label: 'Accept',   broadcastArc: true  },
+    PAXOS_ACCEPTED: { color: '#facc15', label: 'Accepted', broadcastArc: false },
+  },
+  getVotesForReplica(step, replicaId, _config) {
+    const s  = step as PaxosSimulationStep
+    const vs = s.viewStates[s.currentView] as PaxosViewState | undefined
+    if (!vs) return []
+    return vs.accepteds
+      .filter(v => (v.voterId as number) === (replicaId as number))
+      .map(v => ({ blockHash: v.blockHash, viewNum: v.view as number, label: 'ACCEPTED' }))
+  },
+}
+
 export const REGISTRY: Record<string, ProtocolPlugin> = {
   chained:    chainedPlugin,
   basic:      basicPlugin,
   pbft:       pbftPlugin,
   tendermint: tendermintPlugin,
   algorand:   algorandPlugin,
+  paxos:      paxosPlugin,
 }
