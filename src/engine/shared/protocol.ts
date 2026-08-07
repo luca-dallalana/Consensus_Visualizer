@@ -12,6 +12,10 @@ export function quorumSize(n: number): number {
   return Math.floor((2 * n) / 3) + 1
 }
 
+export function majorityQuorumSize(n: number): number {
+  return Math.floor(n / 2) + 1
+}
+
 export function extendsFrom(
   blockchain: readonly Block[],
   blockHash: BlockHash,
