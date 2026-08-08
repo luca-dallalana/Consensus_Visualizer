@@ -36,9 +36,27 @@ describe('Paxos — normal commit path', () => {
       s = advancePaxosStep(s, CFG)
       if (s.committedBlocks.length > 0) break
     }
-    expect(s.committedBlocks).toHaveLength(1)
+    // committedBlocks includes genesis as its own root entry on the first
+    // real commit (established convention — see basic.test.ts:95).
+    expect(s.committedBlocks).toHaveLength(2)
     expect(s.viewStates[0].phase).toBe('DECIDED')
-    expect(s.viewStates[0].decidedBlock).toBe(s.committedBlocks[0])
+    expect(s.viewStates[0].decidedBlock).toBe(s.committedBlocks[1])
+  })
+
+  it('the chain actually grows across sequential views instead of every block parenting genesis', () => {
+    let s = initPaxosSimulation(CFG)
+    const decidedByView = () => s.viewStates.map(vs => vs.decidedBlock).filter((h): h is NonNullable<typeof h> => h !== null)
+
+    for (let i = 0; i < 500 && decidedByView().length < 2; i++) {
+      s = advancePaxosStep(s, CFG)
+    }
+    const decided = decidedByView()
+    expect(decided.length).toBeGreaterThanOrEqual(2)
+    expect(s.blockchain.length).toBeGreaterThanOrEqual(3)
+
+    const first  = s.blockchain.find(b => b.hash === decided[0])
+    const second = s.blockchain.find(b => b.hash === decided[1])
+    expect(second?.parentHash).toBe(first?.hash)
   })
 })
 
@@ -58,7 +76,7 @@ describe('Paxos — SILENT proposer retries with no view-change handshake', () =
       s = advancePaxosStep(s, cfg)
       if (s.committedBlocks.length > 0) break
     }
-    expect(s.committedBlocks).toHaveLength(1)
+    expect(s.committedBlocks).toHaveLength(2)
     expect(s.viewStates[1].leader).toBe(r(1))
   })
 })
@@ -77,7 +95,7 @@ describe('Paxos — majority quorum, not BFT quorum', () => {
       s = advancePaxosStep(s, cfg)
       if (s.committedBlocks.length > 0) break
     }
-    expect(s.committedBlocks).toHaveLength(1)
+    expect(s.committedBlocks).toHaveLength(2)
   })
 })
 
@@ -95,7 +113,7 @@ describe('Paxos — DELAY proposer', () => {
       s = advancePaxosStep(s, cfg)
       if (s.committedBlocks.length > 0) break
     }
-    expect(s.committedBlocks).toHaveLength(1)
+    expect(s.committedBlocks).toHaveLength(2)
   })
 })
 

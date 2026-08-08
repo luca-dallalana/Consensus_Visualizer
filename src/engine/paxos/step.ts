@@ -6,7 +6,7 @@ import type {
 } from '../../types'
 import { makeGenesisBlock, makeBlock, makeVote } from '../shared/factory'
 import { leaderForView, majorityQuorumSize } from '../shared/protocol'
-import { tryFormQC } from '../shared/helpers'
+import { tryFormQC, collectUncommittedAncestors } from '../shared/helpers'
 import { stepRng } from '../shared/prng'
 
 function getVS(step: PaxosSimulationStep): PaxosViewState {
@@ -207,8 +207,9 @@ function deliverPromise(
     ...vs.promises,
     { voterId: msg.from, proposalNumber: msg.proposalNumber, priorAccepted: msg.priorAccepted },
   ]
-  let updatedVS = { ...vs, promises: newPromises }
-  let pending   = rest
+  let updatedVS  = { ...vs, promises: newPromises }
+  let pending    = rest
+  let blockchain = current.blockchain
 
   if (newPromises.length >= q && vs.phase === 'PREPARE_VOTING') {
     // Safety rule: adopt the block from the highest-numbered prior accept
@@ -225,6 +226,12 @@ function deliverPromise(
     const payload = `tx-v${current.currentView}-${Math.floor(rng() * 9000) + 1000}`
     const block   = adopted !== null ? adopted.block : makeBlock(parent, vs.view, vs.leader, payload)
 
+    // Extend the chain like every other engine's propose step — an adopted
+    // block may already be here from the earlier view that first proposed it.
+    if (!current.blockchain.some(b => b.hash === block.hash)) {
+      blockchain = [...current.blockchain, block]
+    }
+
     updatedVS = { ...updatedVS, proposal: block, phase: 'ACCEPT_VOTING' }
     pending   = [
       ...rest.filter(m => m.type !== 'PAXOS_PROMISE'),
@@ -235,6 +242,7 @@ function deliverPromise(
   return {
     ...current,
     stepIndex:         next,
+    blockchain,
     viewStates:        replaceVS(current.viewStates, updatedVS),
     pendingMessages:   pending,
     deliveredMessages: [...current.deliveredMessages, msg],
@@ -308,11 +316,14 @@ function deliverAccepted(
     pending = rest.filter(m => m.type !== 'PAXOS_ACCEPTED')
 
     if (!alreadyDone) {
+      // A prior view can time out after its block was already pushed to the
+      // chain (dropRate > 0) without ever committing — backfill it here.
+      const ancestors = collectUncommittedAncestors(decidedHash, current.blockchain, current.committedBlocks)
       return {
         ...current,
         stepIndex:         next,
         viewStates:        replaceVS(current.viewStates, updatedVS),
-        committedBlocks:   [...current.committedBlocks, decidedHash],
+        committedBlocks:   [...current.committedBlocks, ...ancestors, decidedHash],
         pendingMessages:   pending,
         deliveredMessages: [...current.deliveredMessages, msg],
       }
@@ -352,11 +363,17 @@ function doAdvanceToNextView(
   const nextLeader      = leaderForView(nextViewNum, config.n)
   const nextProposalNum = (nextViewNum as number) + 1
 
-  // currentView bumps; promisedNumber/acceptedProposal must NOT reset here —
-  // they're the cross-view memory that makes recovery safe.
+  // Each view is its own Paxos slot (Multi-Paxos style) — promisedNumber/
+  // acceptedProposal must persist across a TIMED_OUT retry of the SAME
+  // undecided slot (that's the cross-view safety memory), but reset once a
+  // slot actually DECIDED, or every later slot would keep re-adopting the
+  // first-ever committed block forever instead of proposing new ones.
+  const startingNewSlot = getVS(current).phase === 'DECIDED'
   const replicaStates: PaxosReplicaState[] = current.replicaStates.map(r => ({
     ...r,
-    currentView: nextViewNum,
+    currentView:      nextViewNum,
+    promisedNumber:   startingNewSlot ? 0 : r.promisedNumber,
+    acceptedProposal: startingNewSlot ? null : r.acceptedProposal,
   }))
 
   const { viewState, pendingMessages } = startView(config, nextViewNum, nextLeader, nextProposalNum, nextStepIndex)
