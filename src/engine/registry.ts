@@ -48,6 +48,10 @@ import { initPaxosSimulation, advancePaxosStep } from './paxos/step'
 import { narrateStep as narratePaxos, computeViewSummary as summarizePaxos } from './paxos/narrate'
 import type { PaxosSimulationStep, PaxosViewState } from '../types'
 
+import { initRaftSimulation, advanceRaftStep } from './raft/step'
+import { narrateStep as narrateRaft, computeViewSummary as summarizeRaft } from './raft/narrate'
+import type { RaftSimulationStep, RaftViewState } from '../types'
+
 const chainedPlugin: ProtocolPlugin = {
   id:          'chained',
   displayName: 'Chained HotStuff',
@@ -204,6 +208,29 @@ const paxosPlugin: ProtocolPlugin = {
   },
 }
 
+const raftPlugin: ProtocolPlugin = {
+  id:          'raft',
+  displayName: 'Raft',
+  init:        config => initRaftSimulation(config),
+  advance:     (step, config) => advanceRaftStep(step as RaftSimulationStep, config),
+  narrate:     (prev, current, config) => narrateRaft(prev, current, config),
+  summarizeView: (prev, current, config) => summarizeRaft(prev, current, config),
+  messageTypeMap: {
+    RAFT_REQUEST_VOTE: { color: '#60a5fa', label: 'Request Vote', broadcastArc: true  },
+    RAFT_VOTE_GRANT:   { color: '#34d399', label: 'Vote Grant',   broadcastArc: false },
+    RAFT_APPEND:       { color: '#fb923c', label: 'Append',       broadcastArc: true  },
+    RAFT_APPEND_ACK:   { color: '#facc15', label: 'Append Ack',   broadcastArc: false },
+  },
+  getVotesForReplica(step, replicaId, _config) {
+    const s  = step as RaftSimulationStep
+    const vs = s.viewStates[s.currentView] as RaftViewState | undefined
+    if (!vs) return []
+    return vs.appendAcks
+      .filter(v => (v.voterId as number) === (replicaId as number))
+      .map(v => ({ blockHash: v.blockHash, viewNum: v.view as number, label: 'APPEND-ACK' }))
+  },
+}
+
 export const REGISTRY: Record<string, ProtocolPlugin> = {
   chained:    chainedPlugin,
   basic:      basicPlugin,
@@ -211,4 +238,5 @@ export const REGISTRY: Record<string, ProtocolPlugin> = {
   tendermint: tendermintPlugin,
   algorand:   algorandPlugin,
   paxos:      paxosPlugin,
+  raft:       raftPlugin,
 }

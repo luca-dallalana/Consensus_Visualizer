@@ -5,6 +5,7 @@ import type { PbftSimulationStep } from './pbft'
 import type { TendermintSimulationStep } from './tendermint'
 import type { AlgorandSimulationStep } from './algorand'
 import type { PaxosSimulationStep } from './paxos'
+import type { RaftSimulationStep } from './raft'
 
 export type ByzantineFaultStrategy =
   | 'SILENT'
@@ -25,11 +26,11 @@ export interface SimConfig {
   readonly viewTimeout:       number
   readonly maxViews:          number
   readonly seed?:             number
-  readonly protocol:          'chained' | 'basic' | 'pbft' | 'tendermint' | 'algorand' | 'paxos'
+  readonly protocol:          'chained' | 'basic' | 'pbft' | 'tendermint' | 'algorand' | 'paxos' | 'raft'
   readonly dropRate:          number
 }
 
-export type AnySimulationStep = SimulationStep | BasicSimulationStep | PbftSimulationStep | TendermintSimulationStep | AlgorandSimulationStep | PaxosSimulationStep
+export type AnySimulationStep = SimulationStep | BasicSimulationStep | PbftSimulationStep | TendermintSimulationStep | AlgorandSimulationStep | PaxosSimulationStep | RaftSimulationStep
 
 export type SimulationStatus =
   | 'IDLE'

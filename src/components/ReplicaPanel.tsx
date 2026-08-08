@@ -29,11 +29,12 @@ export default function ReplicaPanel({ step, config }: Props) {
 
   // Tendermint replicas carry scalar lockedValue/validValue instead of a QC
   // object (it has no QC concept); Paxos replicas carry promisedNumber/
-  // acceptedProposal instead (no QC and no lock, just Paxos's promise state).
+  // acceptedProposal instead; Raft replicas carry currentTerm/lastLogIndex.
   const isTendermint  = config.protocol === 'tendermint'
   const isPaxos       = config.protocol === 'paxos'
-  const leftColLabel  = isPaxos ? 'promised#' : isTendermint ? 'lockedValue' : 'lockedQC'
-  const rightColLabel = isPaxos ? 'accepted'  : isTendermint ? 'validValue'  : 'prepareQC'
+  const isRaft        = config.protocol === 'raft'
+  const leftColLabel  = isPaxos ? 'promised#' : isRaft ? 'term' : isTendermint ? 'lockedValue' : 'lockedQC'
+  const rightColLabel = isPaxos ? 'accepted'  : isRaft ? 'logIdx' : isTendermint ? 'validValue'  : 'prepareQC'
 
   function replicaColValues(r: (typeof step.replicaStates)[number] | undefined): [string, string] {
     if (r == null) return ['—', '—']
@@ -46,6 +47,9 @@ export default function ReplicaPanel({ step, config }: Props) {
       const left  = `#${r.promisedNumber}`
       const right = r.acceptedProposal != null ? r.acceptedProposal.block.hash.slice(0, 6) : '—'
       return [left, right]
+    }
+    if ('currentTerm' in r) {
+      return [`#${r.currentTerm}`, `i${r.lastLogIndex}`]
     }
     const left  = r.lockedValue != null ? r.lockedValue.slice(0, 6) : '—'
     const right = r.validValue  != null ? r.validValue.slice(0, 6)  : '—'

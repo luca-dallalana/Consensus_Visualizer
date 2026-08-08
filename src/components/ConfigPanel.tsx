@@ -24,11 +24,11 @@ export default function ConfigPanel() {
   const [protocol,        setProtocol]        = useState<SimConfig['protocol']>('chained')
   const [byzantineMap,    setByzantineMap]    = useState<Map<number, ByzantineFaultStrategy>>(new Map())
 
-  const isPaxos = protocol === 'paxos'
-  const f       = isPaxos ? Math.floor((n - 1) / 2) : Math.floor((n - 1) / 3)
+  const isCFT   = protocol === 'paxos' || protocol === 'raft'
+  const f       = isCFT ? Math.floor((n - 1) / 2) : Math.floor((n - 1) / 3)
   const isValid = byzantineMap.size <= f
 
-  const availableStrategies = isPaxos
+  const availableStrategies = isCFT
     ? ALL_STRATEGIES.filter(s => s === 'SILENT' || s === 'DELAY')
     : protocol === 'pbft' || protocol === 'tendermint' || protocol === 'algorand'
       ? ALL_STRATEGIES.filter(s => s !== 'INVALID_QC')
@@ -47,7 +47,7 @@ export default function ConfigPanel() {
 
   function handleProtocolChange(p: SimConfig['protocol']) {
     setProtocol(p)
-    if (p === 'paxos') {
+    if (p === 'paxos' || p === 'raft') {
       setByzantineMap(prev => {
         const next = new Map(prev)
         for (const [id, s] of next.entries()) {
@@ -151,7 +151,7 @@ export default function ConfigPanel() {
       </div>
 
       <p className="text-xs text-gray-500 text-center">
-        f = {f} — up to {f} {isPaxos ? 'crash-faulty' : 'Byzantine'} replica{f !== 1 ? 's' : ''} allowed
+        f = {f} — up to {f} {isCFT ? 'crash-faulty' : 'Byzantine'} replica{f !== 1 ? 's' : ''} allowed
       </p>
 
       <div className="flex flex-col gap-1">
@@ -221,7 +221,7 @@ export default function ConfigPanel() {
 
       {!isValid && (
         <p className="text-xs text-red-400 text-center">
-          Too many {isPaxos ? 'crash-faulty' : 'Byzantine'} replicas — safety requires at most {f}
+          Too many {isCFT ? 'crash-faulty' : 'Byzantine'} replicas — safety requires at most {f}
         </p>
       )}
 
