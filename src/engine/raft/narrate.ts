@@ -64,7 +64,7 @@ export function narrateStep(
         }
         return vg.granted
           ? `R${from} grants its vote to R${lastMsg.to as number} for term ${vg.term}`
-          : `R${from}'s log is stale — refuses R${lastMsg.to as number}'s term ${vg.term} vote request`
+          : `R${lastMsg.to as number}'s log is stale — R${from} refuses its term ${vg.term} vote request`
       }
       case 'RAFT_APPEND': {
         const am = lastMsg as RaftAppendMessage
