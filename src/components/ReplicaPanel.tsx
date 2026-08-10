@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { Fragment, useRef, useState, useEffect } from 'react'
 import type { AnySimulationStep, SimConfig } from '../types'
 import { REGISTRY } from '../engine/registry'
 
@@ -133,9 +133,8 @@ export default function ReplicaPanel({ step, config }: Props) {
               const style = getMsgStyle(t)
               const id    = t.toLowerCase().replace(/_/g, '-')
               return (
-                <>
+                <Fragment key={id}>
                   <marker
-                    key={`arr-${id}`}
                     id={`arr-${id}`}
                     markerWidth="6" markerHeight="6"
                     refX="5" refY="3"
@@ -144,7 +143,6 @@ export default function ReplicaPanel({ step, config }: Props) {
                     <path d="M0,0 L0,6 L6,3 z" fill={style.color} />
                   </marker>
                   <marker
-                    key={`dot-${id}`}
                     id={`dot-${id}`}
                     markerWidth="5" markerHeight="5"
                     refX="2.5" refY="2.5"
@@ -152,7 +150,7 @@ export default function ReplicaPanel({ step, config }: Props) {
                   >
                     <circle cx="2.5" cy="2.5" r="2.5" fill={style.color} />
                   </marker>
-                </>
+                </Fragment>
               )
             })}
           </defs>
