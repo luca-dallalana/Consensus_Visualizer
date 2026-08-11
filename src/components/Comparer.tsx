@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { REGISTRY } from '../engine/registry'
 import { PROTOCOL_PROFILES, type ProtocolProfile } from '../data/protocolProfiles'
-import type { AnySimulationStep, SimConfig, SimulationStatus } from '../types'
+import type { AnySimulationStep, ByzantineFaultStrategy, ReplicaId, SimConfig, SimulationStatus } from '../types'
 import StatusBar from './StatusBar'
 import ReplicaPanel from './ReplicaPanel'
 import BlockchainPanel from './BlockchainPanel'
+import ByzantineFaultPicker, { availableStrategiesFor, reconcileByzantineMap, pruneReplicaCount } from './ByzantineFaultPicker'
 
 type Category = 'BFT' | 'CFT'
 type RunState = 'IDLE' | 'RUNNING' | 'PAUSED'
@@ -64,6 +65,7 @@ function LivePanel({ protocolA, protocolB, category }: { protocolA: string; prot
   const [maxViews, setMaxViews] = useState(10)
   const [seed,     setSeed]     = useState(42)
   const [dropPct,  setDropPct]  = useState(0)
+  const [byzantineMap, setByzantineMap] = useState<Map<number, ByzantineFaultStrategy>>(new Map())
 
   const [runState, setRunState] = useState<RunState>('IDLE')
   const [idx,      setIdx]      = useState(0)
@@ -73,18 +75,34 @@ function LivePanel({ protocolA, protocolB, category }: { protocolA: string; prot
 
   const isCFT = category === 'CFT'
   const f = isCFT ? Math.floor((n - 1) / 2) : Math.floor((n - 1) / 3)
+  const isValid = byzantineMap.size <= f
+
+  const availableStrategies = availableStrategiesFor(protocolA).filter(s => availableStrategiesFor(protocolB).includes(s))
+
+  const byzantineReplicas = useMemo(
+    () => Array.from(byzantineMap.entries()).map(([id, strategy]) => ({ id: id as ReplicaId, strategy })),
+    [byzantineMap],
+  )
 
   const baseConfig = useMemo(() => ({
-    n, f, byzantineReplicas: [], viewTimeout: 10, maxViews, seed, dropRate: dropPct / 100,
-  }), [n, f, maxViews, seed, dropPct])
+    n, f, byzantineReplicas, viewTimeout: 10, maxViews, seed, dropRate: dropPct / 100,
+  }), [n, f, byzantineReplicas, maxViews, seed, dropPct])
 
   const configA: SimConfig = { ...baseConfig, protocol: protocolA as SimConfig['protocol'] }
   const configB: SimConfig = { ...baseConfig, protocol: protocolB as SimConfig['protocol'] }
+
+  function handleNChange(newN: number) {
+    const clamped = Math.max(4, Math.min(9, newN))
+    setN(clamped)
+    setByzantineMap(prev => pruneReplicaCount(prev, clamped))
+  }
 
   useEffect(() => {
     setRunState('IDLE'); setIdx(0)
     setSideA({ steps: [], terminal: null })
     setSideB({ steps: [], terminal: null })
+    setByzantineMap(prev =>
+      reconcileByzantineMap(prev, availableStrategiesFor(protocolA).filter(s => availableStrategiesFor(protocolB).includes(s))))
   }, [protocolA, protocolB])
 
   function start() {
@@ -123,24 +141,46 @@ function LivePanel({ protocolA, protocolB, category }: { protocolA: string; prot
   return (
     <div className="flex flex-col gap-3">
       {runState === 'IDLE' && (
-        <div className="flex flex-wrap items-end gap-4 text-xs font-mono">
-          <label className="flex flex-col gap-1">Replicas
-            <input type="number" min={4} max={9} value={n} onChange={e => setN(Number(e.target.value))}
-              className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center" />
-          </label>
-          <label className="flex flex-col gap-1">Max views
-            <input type="number" min={5} max={50} value={maxViews} onChange={e => setMaxViews(Number(e.target.value))}
-              className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center" />
-          </label>
-          <label className="flex flex-col gap-1">Seed
-            <input type="number" value={seed} onChange={e => setSeed(Number(e.target.value))}
-              className="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center" />
-          </label>
-          <label className="flex flex-col gap-1">Drop %
-            <input type="number" min={0} max={40} step={5} value={dropPct} onChange={e => setDropPct(Number(e.target.value))}
-              className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center" />
-          </label>
-          <button type="button" onClick={start} className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white">
+        <div className="flex flex-col gap-3 text-xs font-mono">
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">Replicas
+              <input type="number" min={4} max={9} value={n} onChange={e => handleNChange(Number(e.target.value))}
+                className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center" />
+            </label>
+            <label className="flex flex-col gap-1">Max views
+              <input type="number" min={5} max={50} value={maxViews} onChange={e => setMaxViews(Number(e.target.value))}
+                className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center" />
+            </label>
+            <label className="flex flex-col gap-1">Seed
+              <input type="number" value={seed} onChange={e => setSeed(Number(e.target.value))}
+                className="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center" />
+            </label>
+            <label className="flex flex-col gap-1">Drop %
+              <input type="number" min={0} max={40} step={5} value={dropPct} onChange={e => setDropPct(Number(e.target.value))}
+                className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center" />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <p className="text-gray-500">
+              f = {f} — up to {f} {isCFT ? 'crash-faulty' : 'Byzantine'} replica{f !== 1 ? 's' : ''} allowed (shared by both sides)
+            </p>
+            <ByzantineFaultPicker
+              n={n}
+              byzantineMap={byzantineMap}
+              setByzantineMap={setByzantineMap}
+              availableStrategies={availableStrategies}
+              f={f}
+            />
+            {!isValid && (
+              <p className="text-red-400">
+                Too many {isCFT ? 'crash-faulty' : 'Byzantine'} replicas — safety requires at most {f}
+              </p>
+            )}
+          </div>
+
+          <button type="button" onClick={start} disabled={!isValid}
+            className="self-start px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-30 disabled:cursor-not-allowed">
             Start
           </button>
         </div>

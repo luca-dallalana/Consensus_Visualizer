@@ -21,6 +21,12 @@ function replaceVS(viewStates: readonly PbftViewState[], updated: PbftViewState)
   return viewStates.map(vs => (vs.view as number) === (updated.view as number) ? updated : vs)
 }
 
+function lastCommittedBlock(current: PbftSimulationStep): Block {
+  if (current.committedBlocks.length === 0) return current.blockchain[0]
+  const lastHash = current.committedBlocks[current.committedBlocks.length - 1]
+  return current.blockchain.find(b => b.hash === lastHash)!
+}
+
 function mkPrePrepare(
   from: ReplicaId, view: ViewNumber, block: Block, step: number,
 ): PbftPrePrepareMessage {
@@ -144,7 +150,7 @@ function handlePropose(current: PbftSimulationStep, config: SimConfig, next: num
   const leaderId = vs.leader
   const byz      = config.byzantineReplicas.find(b => (b.id as number) === (leaderId as number))
   const curView  = current.currentView as ViewNumber
-  const parent   = current.blockchain[current.blockchain.length - 1]
+  const parent   = lastCommittedBlock(current)
 
   if (!byz) {
     const rng     = stepRng(config.seed ?? 0, next)

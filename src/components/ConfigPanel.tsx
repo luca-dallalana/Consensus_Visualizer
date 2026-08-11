@@ -3,13 +3,9 @@ import { useSimStore } from '../store/useSimStore'
 import type { ByzantineFaultStrategy, SimConfig } from '../types'
 import type { ReplicaId } from '../types'
 import { REGISTRY } from '../engine/registry'
+import ByzantineFaultPicker, { availableStrategiesFor, reconcileByzantineMap, pruneReplicaCount } from './ByzantineFaultPicker'
 
-const ALL_STRATEGIES: ByzantineFaultStrategy[] = [
-  'SILENT', 'EQUIVOCATE', 'WRONG_BLOCK', 'DELAY', 'INVALID_QC',
-]
-
-const INPUT  = 'w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm text-center'
-const SELECT = 'bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs'
+const INPUT = 'w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm text-center'
 
 export default function ConfigPanel() {
   const setConfig = useSimStore(s => s.setConfig)
@@ -28,58 +24,16 @@ export default function ConfigPanel() {
   const f       = isCFT ? Math.floor((n - 1) / 2) : Math.floor((n - 1) / 3)
   const isValid = byzantineMap.size <= f
 
-  const availableStrategies = isCFT
-    ? ALL_STRATEGIES.filter(s => s === 'SILENT' || s === 'DELAY')
-    : protocol === 'pbft' || protocol === 'tendermint' || protocol === 'algorand'
-      ? ALL_STRATEGIES.filter(s => s !== 'INVALID_QC')
-      : ALL_STRATEGIES
+  const availableStrategies = availableStrategiesFor(protocol)
 
   function handleNChange(newN: number) {
     setN(newN)
-    setByzantineMap(prev => {
-      const next = new Map(prev)
-      for (const id of next.keys()) {
-        if (id >= newN) next.delete(id)
-      }
-      return next
-    })
+    setByzantineMap(prev => pruneReplicaCount(prev, newN))
   }
 
   function handleProtocolChange(p: SimConfig['protocol']) {
     setProtocol(p)
-    if (p === 'paxos' || p === 'raft') {
-      setByzantineMap(prev => {
-        const next = new Map(prev)
-        for (const [id, s] of next.entries()) {
-          if (s !== 'SILENT' && s !== 'DELAY') next.set(id, 'SILENT')
-        }
-        return next
-      })
-    } else if (p === 'pbft' || p === 'tendermint' || p === 'algorand') {
-      setByzantineMap(prev => {
-        const next = new Map(prev)
-        for (const [id, s] of next.entries()) {
-          if (s === 'INVALID_QC') next.set(id, 'SILENT')
-        }
-        return next
-      })
-    }
-  }
-
-  function toggleReplica(id: number, checked: boolean) {
-    setByzantineMap(prev => {
-      const next = new Map(prev)
-      if (checked) {
-        next.set(id, 'SILENT')
-      } else {
-        next.delete(id)
-      }
-      return next
-    })
-  }
-
-  function setStrategy(id: number, strategy: ByzantineFaultStrategy) {
-    setByzantineMap(prev => new Map(prev).set(id, strategy))
+    setByzantineMap(prev => reconcileByzantineMap(prev, availableStrategiesFor(p)))
   }
 
   function handleStart() {
@@ -90,9 +44,6 @@ export default function ConfigPanel() {
     setConfig({ n, f, byzantineReplicas, viewTimeout, maxViews, seed, protocol, dropRate: dropPct / 100 })
     start()
   }
-
-  const byzantineIds = Array.from(byzantineMap.keys())
-  const overLimit    = byzantineMap.size > f ? byzantineIds.slice(f) : []
 
   const protocols = Object.values(REGISTRY).map(p => ({
     id:   p.id as SimConfig['protocol'],
@@ -182,42 +133,13 @@ export default function ConfigPanel() {
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        {Array.from({ length: n }, (_, id) => {
-          const isByz    = byzantineMap.has(id)
-          const strategy = byzantineMap.get(id)
-          const isOver   = overLimit.includes(id)
-
-          return (
-            <div
-              key={id}
-              className={`flex items-center gap-3 px-2 py-1.5 rounded text-sm ${
-                isOver ? 'border border-red-800 bg-red-950/30' : 'border border-transparent'
-              }`}
-            >
-              <span className="text-gray-300 w-6">R{id}</span>
-              <input
-                type="checkbox"
-                checked={isByz}
-                onChange={e => toggleReplica(id, e.target.checked)}
-                className="accent-blue-500"
-              />
-              {isByz && strategy != null
-                ? (
-                  <select
-                    value={strategy}
-                    onChange={e => setStrategy(id, e.target.value as ByzantineFaultStrategy)}
-                    className={SELECT}
-                  >
-                    {availableStrategies.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                )
-                : <span className="text-gray-600 text-xs">honest</span>
-              }
-            </div>
-          )
-        })}
-      </div>
+      <ByzantineFaultPicker
+        n={n}
+        byzantineMap={byzantineMap}
+        setByzantineMap={setByzantineMap}
+        availableStrategies={availableStrategies}
+        f={f}
+      />
 
       {!isValid && (
         <p className="text-xs text-red-400 text-center">
