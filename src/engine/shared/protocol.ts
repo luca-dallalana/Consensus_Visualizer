@@ -38,9 +38,8 @@ export function safeBlock(
   lockedQC: QC | null,
   blockchain: readonly Block[],
 ): boolean {
-  if (lockedQC === null) {
-    return extendsFrom(blockchain, block.hash, qc.blockHash)
-  }
+  if (!extendsFrom(blockchain, block.hash, qc.blockHash)) return false
+  if (lockedQC === null) return true
   return (
     (qc.view as number) > (lockedQC.view as number) ||
     extendsFrom(blockchain, block.hash, lockedQC.blockHash)
