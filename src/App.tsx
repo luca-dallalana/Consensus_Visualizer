@@ -25,7 +25,15 @@ export default function App() {
           Comparer
         </button>
       </div>
-      {mode === 'sim' ? <SimCanvas /> : <Comparer />}
+      {mode === 'sim' ? (
+        <SimCanvas />
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <div className="min-h-full flex items-center justify-center p-6">
+            <Comparer />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
