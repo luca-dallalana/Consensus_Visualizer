@@ -7,7 +7,9 @@ interface Props {
   step: AnySimulationStep
 }
 
-const MARGIN = { top: 30, right: 100, bottom: 50, left: 70 }
+const MARGIN = { top: 44, right: 100, bottom: 16, left: 70 }
+const LEGEND_H = 26
+const MAX_TREE_H = 260
 
 function hLink(s: HierarchyPointNode<Block>, t: HierarchyPointNode<Block>): string {
   const mid = (s.y + t.y) / 2
@@ -19,27 +21,26 @@ export default function BlockchainPanel({ step }: Props) {
   const proposalHash = viewStates[currentView]?.proposal?.hash
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const [dims, setDims] = useState({ w: 900, h: 500 })
+  const [width, setWidth] = useState(900)
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect
-      if (width > 0 && height > 0) setDims({ w: width, h: height })
+      const w = entry.contentRect.width
+      if (w > 0) setWidth(w)
     })
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
 
-  const innerW = dims.w - MARGIN.left - MARGIN.right
-  const innerH = dims.h - MARGIN.top  - MARGIN.bottom
+  const nodeW = 90
+  const nodeH = 36
+  const depthSpacing   = nodeW + 50
+  const siblingSpacing = nodeH + 16
 
-  const nodeW = Math.max(60, Math.min(110, Math.round(innerW / Math.max(blockchain.length, 1) * 0.7)))
-  const nodeH = Math.max(32, Math.min(48, Math.round(innerH * 0.12)))
-
-  const { nodes, links } = useMemo(() => {
-    if (blockchain.length === 0 || innerW <= 0 || innerH <= 0) return { nodes: [], links: [] }
+  const { nodes, links, treeW, treeH } = useMemo(() => {
+    if (blockchain.length === 0) return { nodes: [], links: [], treeW: 0, treeH: 0 }
 
     try {
       const hashes = new Set((blockchain as Block[]).map(b => b.hash))
@@ -51,29 +52,34 @@ export default function BlockchainPanel({ step }: Props) {
         .id(b => b.hash)
         .parentId(b => b.parentHash)(validBlocks)
 
-      const layout = tree<Block>()
-        .size([innerH, innerW])
-        .separation(() => 1)
+      const layout = tree<Block>().nodeSize([siblingSpacing, depthSpacing])
 
       const pointRoot = layout(root) as HierarchyPointNode<Block>
-      return {
-        nodes: pointRoot.descendants(),
-        links: pointRoot.links(),
-      }
+      const nodes = pointRoot.descendants()
+      const maxY  = Math.max(0, ...nodes.map(n => n.y))
+      const xs    = nodes.map(n => n.x)
+      const treeH = xs.length > 0 ? Math.max(...xs) - Math.min(...xs) : 0
+      return { nodes, links: pointRoot.links(), treeW: maxY, treeH }
     } catch {
-      return { nodes: [], links: [] }
+      return { nodes: [], links: [], treeW: 0, treeH: 0 }
     }
-  }, [blockchain, innerW, innerH])
+  }, [blockchain, siblingSpacing, depthSpacing])
 
-  const hashChars = Math.max(6, Math.min(10, Math.round(nodeW / 8)))
-  const fontSize  = Math.max(8, Math.min(11, Math.round(nodeH * 0.24)))
+  const xs = nodes.map(n => n.x)
+  const vOffset = xs.length > 0 ? -Math.min(...xs) : 0
+
+  const hashChars = 8
+  const fontSize  = 10
+  const svgWidth  = Math.max(width, treeW + MARGIN.left + MARGIN.right + nodeW)
+  const svgHeight = treeH + MARGIN.top + MARGIN.bottom
 
   return (
-    <div ref={containerRef} className="w-full h-full">
-      <svg width={dims.w} height={dims.h}>
-        <text x={12} y={20} fill="#6b7280" fontSize={11} fontFamily="monospace">BLOCKCHAIN</text>
+    <div ref={containerRef} className="w-full flex flex-col">
+      <div className="overflow-auto" style={{ maxHeight: MAX_TREE_H }}>
+        <svg width={svgWidth} height={svgHeight}>
+          <text x={12} y={20} fill="#6b7280" fontSize={11} fontFamily="monospace">BLOCKCHAIN</text>
 
-        <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
+          <g transform={`translate(${MARGIN.left},${MARGIN.top + vOffset})`}>
           {links.map((link, i) => (
             <path
               key={i}
@@ -112,9 +118,12 @@ export default function BlockchainPanel({ step }: Props) {
               </g>
             )
           })}
-        </g>
+          </g>
+        </svg>
+      </div>
 
-        <g transform={`translate(12, ${dims.h - 14})`}>
+      <svg width={width} height={LEGEND_H} className="shrink-0">
+        <g transform={`translate(12, ${LEGEND_H - 12})`}>
           {([
             ['committed', '#22c55e', '#14532d'],
             ['proposal',  '#f59e0b', '#78350f'],

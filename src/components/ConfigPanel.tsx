@@ -51,18 +51,18 @@ export default function ConfigPanel() {
   }))
 
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-80 font-mono flex flex-col gap-5">
+    <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-[30rem] font-mono flex flex-col gap-5">
       <h1 className="text-white text-base font-semibold tracking-tight text-center">
         Consensus Visualizer
       </h1>
 
-      <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs">
+      <div className="grid grid-cols-3 gap-1 rounded-lg overflow-hidden border border-gray-700 text-xs">
         {protocols.map(p => (
           <button
             key={p.id}
             type="button"
             onClick={() => handleProtocolChange(p.id)}
-            className={`flex-1 py-1.5 transition-colors ${
+            className={`py-1.5 px-1 transition-colors ${
               protocol === p.id ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
             }`}
           >

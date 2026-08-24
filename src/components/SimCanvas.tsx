@@ -140,8 +140,8 @@ export default function SimCanvas() {
         <div className="w-1/2 border-r border-gray-800 p-2">
           <ReplicaPanel step={currentStep} config={config} />
         </div>
-        <div className="flex-1 p-2 flex flex-col gap-2">
-          <div className="min-h-0" style={{ flex: 3 }}>
+        <div className="flex-1 p-2 flex flex-col gap-2 overflow-hidden">
+          <div className="shrink-0">
             <BlockchainPanel step={currentStep} />
           </div>
           {hasHistory && (
